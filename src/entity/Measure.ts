@@ -10,7 +10,7 @@ import {
 } from 'typeorm';
 import { Customer } from './Customer'; // Importação do relacionamento com a tabela `Customer`
 
-@Entity()
+@Entity('measure')
 @Unique(['customerCode', 'measureDatetime', 'measureType']) // Definindo a restrição de unicidade
 export class Measure {
     @PrimaryGeneratedColumn('uuid')

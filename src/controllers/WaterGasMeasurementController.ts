@@ -1,15 +1,19 @@
 import { Request, Response } from 'express';
 import { CreateWaterGasMeasurementService } from '../services/CreateWaterGasMeasurementService';
+import { v4 as uuidv4 } from 'uuid';
 
 class WaterGasMeasurementController {
-    handle(request: Request, response: Response) {
+    async handle(request: Request, response: Response) {
 
         const createWaterGasMeasurementService = new CreateWaterGasMeasurementService();
-
-        const image = request.body.image;
-        const customer_code = request.body.customer_code;
-        const measure_datetime = request.body.measure_datetime;
-        const measure_type = request.body.measure_type;
+        const imageUrl = request.body.imageUrl;
+        const customerCode = request.body.customerCode;
+        const measureDatetime = request.body.measureDatetime;
+        const measureType = request.body.measureType;
+        const measureValue = request.body.measureType;
+        const hasConfirmed = request.body.hasConfirmed;
+        const uuid = uuidv4(); 
+        
 
         function isBase64(str: string): boolean {
             try {
@@ -19,17 +23,18 @@ class WaterGasMeasurementController {
             } 
         }
 
-        const measurement = createWaterGasMeasurementService.execute({image, customer_code, measure_datetime, measure_type});
+        
+        const measurement = await createWaterGasMeasurementService.execute({uuid, customerCode, measureDatetime, measureType, measureValue, hasConfirmed, imageUrl});
 
-        //if (!image || !isBase64(image) || !customer_code || !measure_datetime || !measure_type) {
-        if (!customer_code || !measure_datetime || !measure_type) {
+        //if (!image || !isBase64(image) || !customer_code || !measureDatetime || !measureType) {
+        if (!customerCode || !measureDatetime || !measureType) {
             return response.status(400).json({
                 error_code: "INVALID_DATA",
                 error_description: "Os dados fornecidos no corpo da requisição são inválidos"
             });
         }
 
-        const existsReading = checkReadingExists(measure_datetime, measure_type); // Função fictícia
+        const existsReading = checkReadingExists(measureDatetime, measureType); // Função fictícia
 
         if (existsReading) {
             return response.status(409).json({

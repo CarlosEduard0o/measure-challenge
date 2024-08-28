@@ -6,7 +6,7 @@ import {
     UpdateDateColumn,
 } from 'typeorm';
 
-@Entity()
+@Entity('customer')
 export class Customer {
     @PrimaryColumn({ type: 'varchar', length: 255 })
     customerCode: string;

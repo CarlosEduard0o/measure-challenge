@@ -1,19 +1,27 @@
-enum MeasurementType{
+import { AppDataSource } from "../data-source";
+import { Measure } from "../entity/Measure";
+import { v4 as uuidv4 } from 'uuid';
+
+enum MeasurementType {
     WATER = "WATER",
     GAS = "GAS"
 }
 
 interface IMeasurement {
-    image: String
-    customer_code: String
-    measure_datetime: Date
-    measure_type: MeasurementType
+    uuid: string,
+    customerCode: String
+    measureDatetime: Date
+    measureType: MeasurementType
+    measureValue: number, // Valor da medição
+    hasConfirmed: boolean, // Confirmação (opcional)
+    imageUrl: String,
+    // createdAt: Date; // Data e hora de criação
+    // updatedAt: Date; // Data e hora da última atualização
 }
 
 class CreateWaterGasMeasurementService {
-    execute({ image, customer_code, measure_datetime, measure_type} : IMeasurement){
+    async execute({uuid, customerCode, measureDatetime, measureType, measureValue, hasConfirmed, imageUrl}: IMeasurement) {
         //Por enquanto simulando que esse array data é um banco de dados
-        const data = [];
 
         //aqui seria a persistência
         //Ao que parece eu vou gerar a url temporária aqui, pedir para o Gemini ler o valor aqui e também o uuid aqui
@@ -26,13 +34,38 @@ class CreateWaterGasMeasurementService {
         // }
         //Justamente para retornar isso
 
-        const image_url = image+"url";
-        const measure_value = 5000;
-        const measure_uuid = "AKAa45647a8654a654"
-
-        data.push({image_url, measure_value, measure_uuid});
-        return data;
+        const measure = await AppDataSource
+            .createQueryBuilder()
+            .insert()
+            .into(Measure)
+            .values([
+                {
+                    //measureUuid: uuid,
+                    customerCode: 'CUST001', // Código do cliente
+                    measureDatetime: new Date(), // Data e hora da medição
+                    measureType: 'Water', // Tipo de medição
+                    measureValue: 5000, // Valor da medição
+                    hasConfirmed: false, // Confirmação (opcional)
+                    imageUrl: 'http://example.com/image.jpg' // URL da imagem (opcional)
+                },
+            ])
+            .execute()
+            console.log(measure);
+        return measure;
     }
 }
 
+
+
+// PATCH
+// await dataSource
+//     .createQueryBuilder()
+//     .update(User)
+//     .set({ firstName: "Timber", lastName: "Saw" })
+//     .where("id = :id", { id: 1 })
+//     .execute()
+
+
+
+// //GET 
 export { CreateWaterGasMeasurementService }
