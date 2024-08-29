@@ -11,6 +11,8 @@
       "typescript": "4.5.2"
    },
    "dependencies": {
+      "@google/generative-ai": "^0.17.1",
+      "axios": "^1.7.5",
       "express": "^4.19.2",
       "Measure": "file:",
       "pg": "^8.4.0",

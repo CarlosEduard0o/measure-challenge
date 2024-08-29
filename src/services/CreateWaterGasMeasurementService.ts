@@ -9,7 +9,7 @@ enum MeasurementType {
 
 interface IMeasurement {
     uuid: string,
-    customerCode: String,
+    customerCode: string,
     measureDatetime: Date,
     measureType: MeasurementType,
     measureValue: number, // Valor da medição
@@ -31,10 +31,10 @@ class CreateWaterGasMeasurementService {
             .values([
                 {
                     //measureUuid: uuid,
-                    customerCode: 'CUST001', // Código do cliente
+                    customerCode: customerCode, // Código do cliente
                     measureDatetime: new Date(), // Data e hora da medição
-                    measureType: 'Water', // Tipo de medição
-                    measureValue: 5000, // Valor da medição
+                    measureType: measureType, // Tipo de medição
+                    measureValue: measureValue, // Valor da medição
                     hasConfirmed: false, // Confirmação (opcional)
                     imageUrl: 'http://example.com/image.jpg' // URL da imagem (opcional)
                 },
@@ -71,20 +71,32 @@ class CreateWaterGasMeasurementService {
         hasConfirmed?: boolean;
         imageUrl?: string;
     }): Promise<void> {
-        // Atualização de uma medição existente
-        await AppDataSource
-            .createQueryBuilder()
-            .update(Measure)
-            .set({
-                customerCode,
-                measureDatetime,
-                measureType,
-                measureValue,
-                hasConfirmed,
-                imageUrl
-            })
-            .where("measureUuid = :uuid", { uuid })
-            .execute();
+        console.log('Atualizando medição com os seguintes dados:', {
+            uuid,
+            customerCode,
+            measureDatetime,
+            measureType,
+            measureValue,
+            hasConfirmed,
+            imageUrl
+        });
+    
+        const result = await AppDataSource
+        .createQueryBuilder()
+        .update(Measure)
+        .set({
+            customerCode,
+            measureDatetime,
+            measureType,
+            measureValue,
+            hasConfirmed,
+            imageUrl
+        })
+        .where("measureUuid = :uuid", { uuid })
+        .execute();
+    
+    console.log('Resultado da atualização:', result);
+    
     }
 
     async findByUuid(uuid: string): Promise<Measure | null> {
