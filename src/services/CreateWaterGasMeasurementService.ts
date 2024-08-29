@@ -9,9 +9,9 @@ enum MeasurementType {
 
 interface IMeasurement {
     uuid: string,
-    customerCode: String
-    measureDatetime: Date
-    measureType: MeasurementType
+    customerCode: String,
+    measureDatetime: Date,
+    measureType: MeasurementType,
     measureValue: number, // Valor da medição
     hasConfirmed: boolean, // Confirmação (opcional)
     imageUrl: String,
