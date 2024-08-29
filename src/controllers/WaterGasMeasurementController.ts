@@ -82,7 +82,7 @@ class WaterGasMeasurementController {
         const fs = require("fs")
         const readline = require('readline');
 
-        const apiKey = 'AIzaSyB4FcTvZIfU6iT1VUCw6y-d53lL8kikpdM';
+        const apiKey = 'AIzaSyA0waiE74yflGvesOKJ0Z_rhbSzJZc0BwQ';
         const genAI = new GoogleGenerativeAI(apiKey);
         const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" })
 
