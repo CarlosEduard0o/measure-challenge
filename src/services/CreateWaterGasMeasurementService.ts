@@ -21,18 +21,8 @@ interface IMeasurement {
 
 class CreateWaterGasMeasurementService {
     async execute({ uuid, customerCode, measureDatetime, measureType, measureValue, hasConfirmed, imageUrl }: IMeasurement) {
-        //Por enquanto simulando que esse array data é um banco de dados
 
-        //aqui seria a persistência
         //Ao que parece eu vou gerar a url temporária aqui, pedir para o Gemini ler o valor aqui e também o uuid aqui
-        //Isso tudo será retornado.
-        //Aqui eu teria que colocar dentro de data:
-        // {
-        //     “image_url”: string,
-        //     “measure_value”:integer,
-        //     “measure_uuid”: string
-        // }
-        //Justamente para retornar isso
 
         const measure = await AppDataSource
             .createQueryBuilder()
@@ -49,61 +39,61 @@ class CreateWaterGasMeasurementService {
                     imageUrl: 'http://example.com/image.jpg' // URL da imagem (opcional)
                 },
             ])
-            .execute()
-        console.log(measure);
-        return measure;
+            .returning(['measureUuid', 'imageUrl', 'measureValue'])
+            .execute();
+
+        const insertedMeasure = measure.generatedMaps[0];
+
+        const response = {
+            image_url: insertedMeasure.imageUrl,
+            measure_value: insertedMeasure.measureValue,
+            measure_uuid: insertedMeasure.measureUuid,
+        };
+
+        console.log(response);
+        return response;
     }
 
-
-    // Método para atualizar parcialmente uma medição (PATCH)
-    async handlePatch(request: Request, response: Response) {
-        try {
-            const measureUuid = request.params.id;
-            const updateData = request.body;
-
-            const result = await this.measureService.updateMeasure(measureUuid, updateData);
-
-            if (result.affected === 0) {
-                return response.status(404).json({ error: 'Measure not found' });
-            }
-
-            response.status(200).json({ message: 'Measure updated successfully' });
-        } catch (error) {
-            response.status(500).json({ error: error.message });
-        }
+    async update({
+        uuid,
+        customerCode,
+        measureDatetime,
+        measureType,
+        measureValue,
+        hasConfirmed,
+        imageUrl
+    }: {
+        uuid: string;
+        customerCode?: string;
+        measureDatetime?: Date;
+        measureType?: string;
+        measureValue?: number;
+        hasConfirmed?: boolean;
+        imageUrl?: string;
+    }): Promise<void> {
+        // Atualização de uma medição existente
+        await AppDataSource
+            .createQueryBuilder()
+            .update(Measure)
+            .set({
+                customerCode,
+                measureDatetime,
+                measureType,
+                measureValue,
+                hasConfirmed,
+                imageUrl
+            })
+            .where("measureUuid = :uuid", { uuid })
+            .execute();
     }
 
-    // Método para obter todas as medidas de um usuário
-    async getAllMeasuresForUser(request: Request, response: Response) {
-        try {
-            const { customerCode } = request.params;
-
-            const measures = await this.measureService.getAllMeasuresForUser(customerCode);
-
-            if (measures.length === 0) {
-                return response.status(404).json({ error: 'No measures found for this customer' });
-            }
-
-            response.status(200).json(measures);
-        } catch (error) {
-            response.status(500).json({ error: error.message });
-        }
+    async findByUuid(uuid: string): Promise<Measure | null> {
+        return await AppDataSource
+            .getRepository(Measure)
+            .findOneBy({ measureUuid: uuid });
     }
-
 
 }
 
 
-
-// PATCH
-// await dataSource
-//     .createQueryBuilder()
-//     .update(User)
-//     .set({ firstName: "Timber", lastName: "Saw" })
-//     .where("id = :id", { id: 1 })
-//     .execute()
-
-
-
-// //GET 
 export { CreateWaterGasMeasurementService }

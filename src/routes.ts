@@ -4,11 +4,8 @@ import { WaterGasMeasurementController } from './controllers/WaterGasMeasurement
 const router = Router();
 const waterGasMeasurementController = new WaterGasMeasurementController();
 
-router.get('/', (request: Request, response: Response) => {
-    //GET /<customer code>/list
-    //TODAS AS FUNCIONALIDADES DESSA ROTA
-    return response.json({ mensagem: "Bem vindo a nossa API" })
-})
+router.get('/:customer_code/list', waterGasMeasurementController.handleList);
+
 
 router.post('/upload', waterGasMeasurementController.handle)
 
