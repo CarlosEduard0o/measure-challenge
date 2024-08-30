@@ -8,8 +8,10 @@ interface ICustomer {
 
 export class CreateCustomerService {
 
+    private customerRepository = AppDataSource.getRepository(Customer);
+
+    // Cria um novo cliente e retorna o cliente criado
     async execute({ customerCode, name }: ICustomer): Promise<Customer> {
-        // Inserir um novo cliente
         const result = await AppDataSource
             .createQueryBuilder()
             .insert()
@@ -17,19 +19,12 @@ export class CreateCustomerService {
             .values({ customerCode, name })
             .returning(['customerCode', 'name'])
             .execute();
-        
-        // Retornar o cliente criado
-        const createdCustomer = result.generatedMaps[0] as Customer;
-        return createdCustomer;
+
+        return this.getCreatedCustomer(result);
     }
 
-    async update({
-        customerCode,
-        name
-    }: {
-        customerCode: string;
-        name?: string;
-    }): Promise<void> {
+    // Atualiza o nome de um cliente existente
+    async update({ customerCode, name }: { customerCode: string; name?: string }): Promise<void> {
         await AppDataSource
             .createQueryBuilder()
             .update(Customer)
@@ -38,19 +33,19 @@ export class CreateCustomerService {
             .execute();
     }
 
+    // Encontra um cliente pelo código
     async findByCustomerCode(customerCode: string): Promise<Customer | null> {
-        return await AppDataSource
-            .getRepository(Customer)
-            .findOneBy({ customerCode });
+        return this.customerRepository.findOneBy({ customerCode });
     }
 
+    // Cria um novo cliente no banco de dados
     async createCustomer(customerData: Partial<Customer>): Promise<Customer> {
-        const customerRepository = AppDataSource.getRepository(Customer);
+        const customer = this.customerRepository.create(customerData);
+        return this.customerRepository.save(customer);
+    }
 
-        // Criar uma instância da entidade Customer
-        const customer = customerRepository.create(customerData);
-
-        // Salvar a nova instância no banco de dados
-        return await customerRepository.save(customer);
+    // Método auxiliar para extrair o cliente criado da resposta
+    private getCreatedCustomer(result: any): Customer {
+        return result.generatedMaps[0] as Customer;
     }
 }

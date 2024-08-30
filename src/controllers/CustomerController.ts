@@ -4,35 +4,23 @@ import { AppDataSource } from '../data-source';
 import { Customer } from '../entity/Customer';
 
 export class CustomerController {
-    private createCustomerService: CreateCustomerService;
+    private createCustomerService = new CreateCustomerService();
 
-    constructor() {
-        this.createCustomerService = new CreateCustomerService();
-    }
-
-    async handle(request: Request, response: Response) {
+    // Método para criar um novo cliente
+    async handle(request: Request, response: Response): Promise<Response> {
         const { customerCode, name } = request.body;
 
-        // Validação dos dados recebidos
         if (!customerCode || !name) {
-            return response.status(400).json({
-                error_code: "INVALID_DATA",
-                error_description: "Os campos 'customerCode' e 'name' são obrigatórios."
-            });
+            return this.badRequestResponse(response, "Os campos 'customerCode' e 'name' são obrigatórios.");
         }
 
         try {
-            // Verificar se o cliente já existe
             const existingCustomer = await this.createCustomerService.findByCustomerCode(customerCode);
 
             if (existingCustomer) {
-                return response.status(409).json({
-                    error_code: "CUSTOMER_EXISTS",
-                    error_description: "Cliente já existe com o código fornecido."
-                });
+                return this.conflictResponse(response, "Cliente já existe com o código fornecido.");
             }
 
-            // Criar um novo cliente
             const newCustomer: Partial<Customer> = { customerCode, name };
             const createdCustomer = await this.createCustomerService.createCustomer(newCustomer);
 
@@ -43,37 +31,25 @@ export class CustomerController {
             });
         } catch (error) {
             console.error(error);
-            return response.status(500).json({
-                error_code: "INTERNAL_SERVER_ERROR",
-                error_description: "Erro ao criar o cliente. Por favor, tente novamente."
-            });
+            return this.internalServerErrorResponse(response, "Erro ao criar o cliente. Por favor, tente novamente.");
         }
     }
 
-    //Método para atualizar um cliente existente
-    async handlePatch(request: Request, response: Response) {
+    // Método para atualizar um cliente existente
+    async handlePatch(request: Request, response: Response): Promise<Response> {
         const { customerCode, name } = request.body;
 
-        // Validação dos dados recebidos
         if (!customerCode) {
-            return response.status(400).json({
-                error_code: "INVALID_DATA",
-                error_description: "O campo 'customerCode' é obrigatório."
-            });
+            return this.badRequestResponse(response, "O campo 'customerCode' é obrigatório.");
         }
 
         try {
-            // Verificar se o cliente existe
             const existingCustomer = await this.createCustomerService.findByCustomerCode(customerCode);
 
             if (!existingCustomer) {
-                return response.status(404).json({
-                    error_code: "CUSTOMER_NOT_FOUND",
-                    error_description: "Cliente não encontrado com o código fornecido."
-                });
+                return this.notFoundResponse(response, "Cliente não encontrado com o código fornecido.");
             }
 
-            // Atualizar o cliente
             await this.createCustomerService.update({ customerCode, name });
 
             return response.status(200).json({
@@ -82,25 +58,19 @@ export class CustomerController {
             });
         } catch (error) {
             console.error(error);
-            return response.status(500).json({
-                error_code: "INTERNAL_SERVER_ERROR",
-                error_description: "Erro ao atualizar o cliente. Por favor, tente novamente."
-            });
+            return this.internalServerErrorResponse(response, "Erro ao atualizar o cliente. Por favor, tente novamente.");
         }
     }
 
     // Método para listar um cliente por customerCode
-    async handleListByCode(request: Request, response: Response) {
+    async handleListByCode(request: Request, response: Response): Promise<Response> {
         const { customerCode } = request.params;
 
         try {
             const customer = await this.createCustomerService.findByCustomerCode(customerCode);
 
             if (!customer) {
-                return response.status(404).json({
-                    error_code: "CUSTOMER_NOT_FOUND",
-                    error_description: "Cliente não encontrado com o código fornecido."
-                });
+                return this.notFoundResponse(response, "Cliente não encontrado com o código fornecido.");
             }
 
             return response.status(200).json({
@@ -109,25 +79,17 @@ export class CustomerController {
             });
         } catch (error) {
             console.error(error);
-            return response.status(500).json({
-                error_code: "INTERNAL_SERVER_ERROR",
-                error_description: "Erro ao buscar o cliente. Por favor, tente novamente."
-            });
+            return this.internalServerErrorResponse(response, "Erro ao buscar o cliente. Por favor, tente novamente.");
         }
     }
 
     // Método para listar todos os clientes
-    async handleList(request: Request, response: Response) {
+    async handleList(request: Request, response: Response): Promise<Response> {
         try {
-            const customers = await AppDataSource
-                .getRepository(Customer)
-                .find();
+            const customers = await AppDataSource.getRepository(Customer).find();
 
             if (customers.length === 0) {
-                return response.status(404).json({
-                    error_code: "CUSTOMERS_NOT_FOUND",
-                    error_description: "Nenhum cliente encontrado."
-                });
+                return this.notFoundResponse(response, "Nenhum cliente encontrado.");
             }
 
             return response.status(200).json({
@@ -138,10 +100,36 @@ export class CustomerController {
             });
         } catch (error) {
             console.error(error);
-            return response.status(500).json({
-                error_code: "INTERNAL_SERVER_ERROR",
-                error_description: "Erro ao buscar os clientes. Por favor, tente novamente."
-            });
+            return this.internalServerErrorResponse(response, "Erro ao buscar os clientes. Por favor, tente novamente.");
         }
+    }
+
+    // Respostas de erro padrão
+    private badRequestResponse(response: Response, description: string): Response {
+        return response.status(400).json({
+            error_code: "INVALID_DATA",
+            error_description: description
+        });
+    }
+
+    private notFoundResponse(response: Response, description: string): Response {
+        return response.status(404).json({
+            error_code: "CUSTOMER_NOT_FOUND",
+            error_description: description
+        });
+    }
+
+    private conflictResponse(response: Response, description: string): Response {
+        return response.status(409).json({
+            error_code: "CUSTOMER_EXISTS",
+            error_description: description
+        });
+    }
+
+    private internalServerErrorResponse(response: Response, description: string): Response {
+        return response.status(500).json({
+            error_code: "INTERNAL_SERVER_ERROR",
+            error_description: description
+        });
     }
 }

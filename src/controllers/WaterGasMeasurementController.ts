@@ -3,37 +3,71 @@ import { CreateWaterGasMeasurementService } from '../services/CreateWaterGasMeas
 import { v4 as uuidv4 } from 'uuid';
 import { AppDataSource } from '../data-source';
 import { Measure } from '../entity/Measure';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import readline from 'readline';
+import path from 'path';
+import fs from 'fs';
+import sharp from 'sharp';
 
 const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout
 });
 
-
-function promptUser(question: string): Promise<string> {
+const promptUser = (question: string): Promise<string> => {
     return new Promise((resolve) => {
-        rl.question(question, (answer) => {
-            resolve(answer);
-            // Não feche o readline aqui
-        });
+        rl.question(question, (answer) => resolve(answer));
     });
-}
+};
 
-// Função para fechar o readline quando todas as operações estiverem concluídas
-function closeReadline() {
-    rl.close();
-}
+const closeReadline = () => rl.close();
 
+const analyzeImage = async (model: any, base64String: string, retries = 3): Promise<string> => {
+    const prompt = "Please identify the meter reading value in the image. The reading is located in the central area, with the first five digits in black and the last two in red. Ignore the serial number at the top.";
+    const image = {
+        inlineData: {
+            data: base64String.replace(/^data:image\/\w+;base64,/, ''),
+            mimeType: "image/png",
+        },
+    };
+
+    try {
+        const result = await model.generateContent([prompt, image]);
+        return result.response.text();
+    } catch (error) {
+        if (retries > 0) {
+            console.warn(`Retrying due to error: ${error.message}. Retries left: ${retries}`);
+            await new Promise(resolve => setTimeout(resolve, 3000));
+            return analyzeImage(model, base64String, retries - 1);
+        } else {
+            throw new Error(`Failed to analyze image after retries: ${error.message}`);
+        }
+    }
+};
+
+const parseMeasurementValue = (rawValue: string): number | null => {
+    const cleanedValue = rawValue.replace(/[^0-9]/g, '');
+    return isNaN(parseInt(cleanedValue, 10)) ? null : parseInt(cleanedValue, 10);
+};
+
+const generateTempImageUrl = (fileName: string) => {
+    const baseUrl = 'http://localhost:5000/uploads/';
+    return `${baseUrl}${fileName}`;
+};
+
+const ensureUploadsDirExists = () => {
+    const uploadsDir = path.join(__dirname, '..', 'uploads');
+    if (!fs.existsSync(uploadsDir)) {
+        fs.mkdirSync(uploadsDir);
+    }
+};
 
 class WaterGasMeasurementController {
 
     async handleList(request: Request, response: Response) {
         const { customer_code } = request.params;
-
-        // Suporte apenas para tipos de medição "WATER" ou "GAS"
-        const allowedTypes = ["WATER", "GAS"];
         const measureType = request.query.measure_type?.toString().toUpperCase();
+        const allowedTypes = ["WATER", "GAS"];
 
         if (measureType && !allowedTypes.includes(measureType)) {
             return response.status(400).json({
@@ -57,7 +91,7 @@ class WaterGasMeasurementController {
             }
 
             const responsePayload = {
-                customer_code: customer_code,
+                customer_code,
                 measures: measurements.map(measure => ({
                     measure_uuid: measure.measureUuid,
                     measure_datetime: measure.measureDatetime,
@@ -77,171 +111,134 @@ class WaterGasMeasurementController {
     }
 
     async handle(request: Request, response: Response) {
-
-        const { GoogleGenerativeAI } = require("@google/generative-ai");
-        const fs = require("fs")
-        const readline = require('readline');
-
-        const apiKey = 'AIzaSyA0waiE74yflGvesOKJ0Z_rhbSzJZc0BwQ';
-        const genAI = new GoogleGenerativeAI(apiKey);
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" })
-
-        const createWaterGasMeasurementService = new CreateWaterGasMeasurementService();
-        const imageUrl = request.body.imageUrl;
-        const base64String = request.body.image.replace(/^data:image\/png;base64,/, '');
-        const customerCode = request.body.customerCode;
-        const measureDatetime = request.body.measureDatetime;
-        const measureType = request.body.measureType;
-        const measureValue = request.body.measureType;
-        const hasConfirmed = request.body.hasConfirmed;
+        const { image, customerCode, measureDatetime, measureType, hasConfirmed } = request.body;
+        const base64String = image.replace(/^data:image\/[a-z]+;base64,/, '');
         const uuid = uuidv4();
-
-
-        // Printar o valor da imagem base64 no console
-        if (base64String) {
-            //     console.log("Imagem base64 recebida:", base64String);
-        }
-
-        function isBase64(str: string): boolean {
-            try {
-                return btoa(atob(str)) === str;
-            } catch (err) {
-                return false;
-            }
-        }
-
-        //const measurement = await createWaterGasMeasurementService.execute({ uuid, customerCode, measureDatetime, measureType, measureValue, hasConfirmed, imageUrl });
-
-        //if (!base64String || !isBase64(base64String) || !customer_code || !measureDatetime || !measureType) {
+    
         if (!customerCode || !measureDatetime || !measureType) {
             return response.status(400).json({
                 error_code: "INVALID_DATA",
                 error_description: "Os dados fornecidos no corpo da requisição são inválidos"
             });
         }
-
-        const existsReading = checkReadingExists(measureDatetime, measureType); // Função fictícia
-
-        if (existsReading) {
-            return response.status(409).json({
-                error_code: "DOUBLE_REPORT",
-                error_description: "Leitura do mês já realizada."
-            });
-        }
-
-        // async function promptUser(question: string): Promise<string> {
-        //     const rl = readline.createInterface({
-        //         input: process.stdin,
-        //         output: process.stdout
-        //     });
-
-        //     return new Promise((resolve) => {
-        //         rl.question(question, (answer: string) => {
-        //             rl.close();
-        //             resolve(answer);
-        //         });
-        //     });
-        // }
-
-
-        // Enviar a imagem para a API Gemini Vision
-        const prompt = "Please identify the meter reading value in the image. The reading is located in the central area, with the first five digits in black and the last two in red. Ignore the serial number at the top.";
-        const image = {
-            inlineData: {
-                data: base64String.toString("base64").replace(/^data:image\/\w+;base64,/, ''),
-                mimeType: "image/png",
-            },
-        };
-
-        async function analyzeImage() {
+    
+        try {
+            const apiKey = 'AIzaSyDpyfitP0Y1bvRidadnEFd-85KtnwjnDpo'; // Atualize para sua chave de API válida
+            const genAI = new GoogleGenerativeAI(apiKey);
+            const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
+    
+            const readingValue = await analyzeImage(model, base64String);
+            const value = parseMeasurementValue(readingValue);
+    
+            // Save image locally
+            const imageBuffer = Buffer.from(base64String, 'base64');
+            const uploadsDir = path.join(__dirname, 'uploads');
+            if (!fs.existsSync(uploadsDir)) {
+                fs.mkdirSync(uploadsDir);
+            }
+    
             try {
-                const result = await model.generateContent([prompt, image]);
-                //console.log(result.response.text());
-                const readingValue = result.response.text();
-
-
-                function parseMeasurementValue(rawValue: string): number | null {
-                    // Remove qualquer caractere não numérico, exceto números
-                    const cleanedValue = rawValue.replace(/[^0-9]/g, '');
-
-                    // Converte para número e verifica se é válido
-                    const parsedValue = parseInt(cleanedValue, 10);
-
-                    // Retorna o valor se for um número válido
-                    return isNaN(parsedValue) ? null : parsedValue;
+                await sharp(imageBuffer).toBuffer();
+            } catch (err) {
+                return response.status(400).json({
+                    error_code: "INVALID_IMAGE_FORMAT",
+                    error_description: "Formato de imagem não suportado"
+                });
+            }
+    
+            const imageFileName = `${uuid}.jpg`;
+            const imagePath = path.join(__dirname, '..', 'uploads', imageFileName);
+    
+            await sharp(imageBuffer).toFile(imagePath);
+    
+            const imageUrl = generateTempImageUrl(imageFileName);
+    
+            const confirmation = await promptUser(`O valor identificado é ${value}. Está correto? (yes/no): `);
+    
+            if (confirmation.toLowerCase() === 'yes') {
+                await new CreateWaterGasMeasurementService().execute({
+                    uuid,
+                    customerCode,
+                    measureDatetime,
+                    measureType,
+                    measureValue: value,
+                    hasConfirmed: true,
+                    imageUrl
+                });
+    
+                return response.status(200).json({
+                    image_url: imageUrl,
+                    measure_value: value,
+                    measure_uuid: uuid
+                });
+            } else {
+                const confirmedValue = await promptUser(`Digite o valor confirmado manualmente: `);
+                const parsedValue = parseInt(confirmedValue, 10);
+    
+                if (isNaN(parsedValue)) {
+                    return response.status(400).json({
+                        success: false,
+                        message: "Valor confirmado inválido."
+                    });
                 }
-
-                const value = parseMeasurementValue(readingValue);
-
-                // Confirmar com o usuário
-                const confirmation = await promptUser(`O valor identificado é ${value}. Está correto? (yes/no): `);
-                if (confirmation.toLowerCase() === 'yes') {
-                    console.log("Valor confirmado pelo usuário.");
-                    await createWaterGasMeasurementService.execute({
-                        uuid,
-                        customerCode,
-                        measureDatetime,
-                        measureType,
-                        measureValue: value,
-                        hasConfirmed: true,
-                        imageUrl: request.body.imageUrl
-                    });
-
-                    return response.status(200).json({
-                        success: true,
-                        message: "Medição confirmada e persistida com sucesso."
-                    });
-
-                } else {
-                    console.log("Valor não confirmado. Verifique a qualidade da imagem.");
-
-                    const confirmedValue = await promptUser(`Digite o valor confirmado manualmente: `);
-                    const parsedValue = parseInt(confirmedValue, 10);
-
-                    if (isNaN(parsedValue)) {
-                        console.error("Valor digitado não é um número válido.");
-                        return response.status(400).json({
-                            success: false,
-                            message: "Valor confirmado inválido."
-                        });
-                    }
-
-                    await createWaterGasMeasurementService.update({
+    
+                // Verifique se a medição já existe
+                const existingMeasurement = await new CreateWaterGasMeasurementService().findByUuid(uuid);
+    
+                if (existingMeasurement) {
+                    const result = await new CreateWaterGasMeasurementService().update({
                         uuid,
                         customerCode,
                         measureDatetime,
                         measureType,
                         measureValue: parsedValue,
                         hasConfirmed: true,
-                        imageUrl: request.body.imageUrl
+                        imageUrl
                     });
-
+    
+                    if (result.affected === 0) {
+                        console.error("Atualização falhou: Nenhuma linha foi afetada.");
+                        return response.status(500).json({
+                            success: false,
+                            message: "Falha ao atualizar a medição."
+                        });
+                    }
+    
                     return response.status(200).json({
                         success: true,
                         message: "Medição atualizada manualmente com sucesso."
                     });
+                } else {
+                    // Cria uma nova medição se não existir
+                    await new CreateWaterGasMeasurementService().execute({
+                        uuid,
+                        customerCode,
+                        measureDatetime,
+                        measureType,
+                        measureValue: parsedValue,
+                        hasConfirmed: true,
+                        imageUrl
+                    });
+    
+                    return response.status(200).json({
+                        success: true,
+                        message: "Medição criada e confirmada manualmente com sucesso."
+                    });
                 }
-            } catch (error) {
-                console.error("Erro ao processar a entrada do usuário:", error);
-                return response.status(500).json({
-                    success: false,
-                    message: "Erro ao processar a entrada do usuário."
-                });
-            } finally {
-                closeReadline(); // Fecha o readline após todas as operações
             }
+        } catch (error) {
+            console.error("Erro ao processar a entrada do usuário:", error);
+            return response.status(500).json({
+                success: false,
+                message: "Erro ao processar a entrada do usuário."
+            });
+        } finally {
+            rl.close();
         }
-
-        analyzeImage();
-
-        //return response.status(200).json(measurement);
     }
 
     async handlePatch(request: Request, response: Response) {
-        //const { measureUuid } = request.params; // O UUID da medição é passado como parâmetro na URL
-        const { measure_uuid, confirmed_value } = request.body;
-        const { imageUrl, customerCode, measureDatetime, measureType, measureValue, hasConfirmed } = request.body;
-        const createWaterGasMeasurementService = new CreateWaterGasMeasurementService();
+        const { measure_uuid, confirmed_value, customerCode, measureDatetime, measureType, imageUrl } = request.body;
 
         if (!measure_uuid || confirmed_value === undefined) {
             return response.status(400).json({
@@ -250,55 +247,33 @@ class WaterGasMeasurementController {
             });
         }
 
-        const existingMeasurement = await createWaterGasMeasurementService.findByUuid(measure_uuid);
-        if (!existingMeasurement) {
-            return response.status(404).json({
-                error_code: "MEASURE_NOT_FOUND",
-                error_description: "Leitura não encontrada"
-            });
-        }
-
-        if (existingMeasurement.hasConfirmed) {
-            return response.status(409).json({
-                error_code: "CONFIRMATION_DUPLICATE",
-                error_description: "Leitura do mês já realizada"
-            });
-        }
-
-        // Validação básica dos dados
-        if (!measure_uuid || !customerCode || !measureDatetime || !measureType) {
-            return response.status(400).json({
-                error_code: "INVALID_DATA",
-                error_description: "Os dados fornecidos no corpo da requisição são inválidos"
-            });
-        }
-
-        // Verifica se a leitura já existe
-
-        if (!existingMeasurement) {
-            return response.status(404).json({
-                error_code: "MEASURE_NOT_FOUND",
-                error_description: "Leitura não encontrada"
-            });
-        }
-
-        // Verifica se a leitura já foi confirmada
-        if (existingMeasurement.hasConfirmed) {
-            return response.status(409).json({
-                error_code: "CONFIRMATION_DUPLICATE",
-                error_description: "Leitura do mês já realizada"
-            });
-        }
-
         try {
-            await createWaterGasMeasurementService.update({
+            const existingMeasurement = await new CreateWaterGasMeasurementService().findByUuid(measure_uuid);
+            if (!existingMeasurement) {
+                return response.status(404).json({
+                    error_code: "MEASURE_NOT_FOUND",
+                    error_description: "Leitura não encontrada"
+                });
+            }
+
+            if (existingMeasurement.hasConfirmed) {
+                return response.status(409).json({
+                    error_code: "CONFIRMATION_DUPLICATE",
+                    error_description: "Leitura do mês já realizada"
+                });
+            }
+
+            await new CreateWaterGasMeasurementService().update({
                 uuid: measure_uuid,
+                customerCode,
+                measureDatetime,
+                measureType,
                 measureValue: confirmed_value,
-                hasConfirmed: true
+                hasConfirmed: true,
+                imageUrl
             });
 
             return response.status(200).json({ success: true });
-
         } catch (error) {
             return response.status(500).json({
                 error_code: "UPDATE_FAILED",
@@ -306,16 +281,28 @@ class WaterGasMeasurementController {
             });
         }
     }
-
 }
 
+const checkReadingExists = async (datetime: Date | string, type: string): Promise<boolean> => {
+    if (typeof datetime === 'string') {
+        datetime = new Date(datetime);
+    }
 
-// Função fictícia para verificar a existência da leitura
-function checkReadingExists(datetime: string, type: string): boolean {
-    // Lógica para verificar se já existe uma leitura no banco de dados
-    // Isso pode envolver consultas ao banco de dados para checar se uma leitura com
-    // o mesmo tipo e dentro do mesmo mês já foi registrada.
-    return false;
-}
+    if (!(datetime instanceof Date) || isNaN(datetime.getTime())) {
+        throw new Error('Invalid date provided');
+    }
 
-export { WaterGasMeasurementController }
+    const year = datetime.getFullYear();
+    const month = datetime.getMonth() + 1;
+
+    const result = await AppDataSource.getRepository(Measure)
+        .createQueryBuilder('measure')
+        .where('measure.measureType = :type', { type })
+        .andWhere('EXTRACT(YEAR FROM measure.measureDatetime) = :year', { year })
+        .andWhere('EXTRACT(MONTH FROM measure.measureDatetime) = :month', { month })
+        .getOne();
+
+    return !!result;
+};
+
+export { WaterGasMeasurementController };

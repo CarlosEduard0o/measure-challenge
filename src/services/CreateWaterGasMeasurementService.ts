@@ -1,6 +1,6 @@
 import { AppDataSource } from "../data-source";
 import { Measure } from "../entity/Measure";
-import { v4 as uuidv4 } from 'uuid';
+import { UpdateResult } from 'typeorm'; // Importação de UpdateResult
 
 enum MeasurementType {
     WATER = "WATER",
@@ -8,104 +8,74 @@ enum MeasurementType {
 }
 
 interface IMeasurement {
-    uuid: string,
-    customerCode: string,
-    measureDatetime: Date,
-    measureType: MeasurementType,
-    measureValue: number, // Valor da medição
-    hasConfirmed: boolean, // Confirmação (opcional)
-    imageUrl: String,
-    // createdAt: Date; // Data e hora de criação
-    // updatedAt: Date; // Data e hora da última atualização
+    uuid: string;
+    customerCode: string;
+    measureDatetime: Date;
+    measureType: MeasurementType;
+    measureValue: number;
+    hasConfirmed?: boolean; // Confirmação (opcional)
+    imageUrl?: string; // URL da imagem (opcional)
 }
 
 class CreateWaterGasMeasurementService {
-    async execute({ uuid, customerCode, measureDatetime, measureType, measureValue, hasConfirmed, imageUrl }: IMeasurement) {
 
-        //Ao que parece eu vou gerar a url temporária aqui, pedir para o Gemini ler o valor aqui e também o uuid aqui
-
+    // Cria uma nova medição e retorna os dados da medição inserida
+    async execute(measurement: IMeasurement) {
         const measure = await AppDataSource
             .createQueryBuilder()
             .insert()
             .into(Measure)
-            .values([
-                {
-                    //measureUuid: uuid,
-                    customerCode: customerCode, // Código do cliente
-                    measureDatetime: new Date(), // Data e hora da medição
-                    measureType: measureType, // Tipo de medição
-                    measureValue: measureValue, // Valor da medição
-                    hasConfirmed: false, // Confirmação (opcional)
-                    imageUrl: 'http://example.com/image.jpg' // URL da imagem (opcional)
-                },
-            ])
+            .values(this.mapToMeasure(measurement))
             .returning(['measureUuid', 'imageUrl', 'measureValue'])
             .execute();
 
-        const insertedMeasure = measure.generatedMaps[0];
-
-        const response = {
-            image_url: insertedMeasure.imageUrl,
-            measure_value: insertedMeasure.measureValue,
-            measure_uuid: insertedMeasure.measureUuid,
-        };
-
-        console.log(response);
-        return response;
+        return this.formatResponse(measure.generatedMaps[0]);
     }
 
-    async update({
-        uuid,
-        customerCode,
-        measureDatetime,
-        measureType,
-        measureValue,
-        hasConfirmed,
-        imageUrl
-    }: {
-        uuid: string;
-        customerCode?: string;
-        measureDatetime?: Date;
-        measureType?: string;
-        measureValue?: number;
-        hasConfirmed?: boolean;
-        imageUrl?: string;
-    }): Promise<void> {
-        console.log('Atualizando medição com os seguintes dados:', {
-            uuid,
-            customerCode,
-            measureDatetime,
-            measureType,
-            measureValue,
-            hasConfirmed,
-            imageUrl
-        });
+    // Atualiza uma medição existente
+    async update(measurement: Partial<IMeasurement>): Promise<UpdateResult> {
+        console.log('Atualizando medição com os seguintes dados:', measurement);
     
         const result = await AppDataSource
-        .createQueryBuilder()
-        .update(Measure)
-        .set({
-            customerCode,
-            measureDatetime,
-            measureType,
-            measureValue,
-            hasConfirmed,
-            imageUrl
-        })
-        .where("measureUuid = :uuid", { uuid })
-        .execute();
+            .createQueryBuilder()
+            .update(Measure)
+            .set(this.mapToMeasure(measurement))
+            .where("measureUuid = :uuid", { uuid: measurement.uuid })
+            .execute();
     
-    console.log('Resultado da atualização:', result);
+        console.log('Resultado da atualização:', result);
     
+        return result; // Retorna o resultado da atualização
     }
 
+
+    // Encontra uma medição pelo UUID
     async findByUuid(uuid: string): Promise<Measure | null> {
         return await AppDataSource
             .getRepository(Measure)
             .findOneBy({ measureUuid: uuid });
     }
 
+    // Mapeia os dados da medição para a entidade Measure
+    private mapToMeasure(measurement: Partial<IMeasurement>) {
+        return {
+            customerCode: measurement.customerCode,
+            measureDatetime: measurement.measureDatetime,
+            measureType: measurement.measureType,
+            measureValue: measurement.measureValue,
+            hasConfirmed: measurement.hasConfirmed ?? false,
+            imageUrl: measurement.imageUrl ?? 'http://example.com/image.jpg'
+        };
+    }
+
+    // Formata a resposta com os dados da medição
+    private formatResponse(insertedMeasure: any) {
+        return {
+            image_url: insertedMeasure.imageUrl,
+            measure_value: insertedMeasure.measureValue,
+            measure_uuid: insertedMeasure.measureUuid
+        };
+    }
 }
 
-
-export { CreateWaterGasMeasurementService }
+export { CreateWaterGasMeasurementService };
