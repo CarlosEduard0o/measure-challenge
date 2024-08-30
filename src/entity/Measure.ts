@@ -5,14 +5,15 @@ import {
     CreateDateColumn,
     UpdateDateColumn,
     Unique,
-    ManyToOne,
-    JoinColumn,
+    // ManyToOne,
+    // JoinColumn,
 } from 'typeorm';
-import { Customer } from './Customer'; // Importação do relacionamento com a tabela `Customer`
+// import { Customer } from './Customer'; // Importação do relacionamento com a tabela `Customer`
 import { MeasurementType } from '../services/CreateWaterGasMeasurementService';
 
 @Entity('measure')
-@Unique(['customerCode', 'measureDatetime', 'measureType']) // Definindo a restrição de unicidade
+// @Unique(['customerCode', 'measureDatetime', 'measureType']) // Definindo a restrição de unicidade
+@Unique(['measureDatetime', 'measureType']) // Definindo a restrição de unicidade
 export class Measure {
     @PrimaryGeneratedColumn('uuid')
     measureUuid: string;
@@ -41,7 +42,7 @@ export class Measure {
     @UpdateDateColumn({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP', onUpdate: 'CURRENT_TIMESTAMP' })
     updatedAt: Date;
 
-    @ManyToOne(() => Customer)
-    @JoinColumn({ name: 'customerCode', referencedColumnName: 'customerCode' })
-    customer: Customer;
+    // @ManyToOne(() => Customer)
+    // @JoinColumn({ name: 'customerCode', referencedColumnName: 'customerCode' })
+    // customer: Customer;
 }
