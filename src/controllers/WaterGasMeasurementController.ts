@@ -8,6 +8,7 @@ import readline from 'readline';
 import path from 'path';
 import fs from 'fs';
 import sharp from 'sharp';
+import { GEMINI_API_KEY } from "../config/enviroment";
 
 const rl = readline.createInterface({
     input: process.stdin,
@@ -123,7 +124,7 @@ class WaterGasMeasurementController {
         }
     
         try {
-            const apiKey = 'AIzaSyDpyfitP0Y1bvRidadnEFd-85KtnwjnDpo'; // Atualize para sua chave de API válida
+            const apiKey = GEMINI_API_KEY; // Atualize para sua chave de API válida
             const genAI = new GoogleGenerativeAI(apiKey);
             const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
     
