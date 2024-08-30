@@ -9,6 +9,7 @@ import {
     JoinColumn,
 } from 'typeorm';
 import { Customer } from './Customer'; // Importação do relacionamento com a tabela `Customer`
+import { MeasurementType } from '../services/CreateWaterGasMeasurementService';
 
 @Entity('measure')
 @Unique(['customerCode', 'measureDatetime', 'measureType']) // Definindo a restrição de unicidade
@@ -23,7 +24,7 @@ export class Measure {
     measureDatetime: Date;
 
     @Column({ type: 'varchar', length: 255 })
-    measureType: string;
+    measureType: MeasurementType;
 
     @Column({ type: 'int' })
     measureValue: number;

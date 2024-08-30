@@ -78,4 +78,4 @@ class CreateWaterGasMeasurementService {
     }
 }
 
-export { CreateWaterGasMeasurementService };
+export { CreateWaterGasMeasurementService, MeasurementType };
